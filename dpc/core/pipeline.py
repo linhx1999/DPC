@@ -57,6 +57,9 @@ class DPCPipeline:
         - num_solver_attempts: Number of Python solver attempts per test data set.
         """
         self.llm.reset_usage()
+        self.trace = {"candidate_count": len(candidate_sqls), "executable_count": None,
+                      "group_sizes": [], "duel_triggered": False, "valid_rounds": 0,
+                      "challenger_wins": 0}
         eval_metric = eval_metric.lower()
         if eval_metric not in {"bs_f1", "ex"}:
             raise ValueError(f"Unsupported eval_metric: {eval_metric}. Expected one of ['bs_f1', 'ex'].")
@@ -68,6 +71,8 @@ class DPCPipeline:
         if phase1_selection_mode == "execution":
             logger.info(f"Phase 1: Execution-based clustering over {len(candidate_sqls)} candidate SQLs...")
             groups = cluster_sql_candidates(db_path, candidate_sqls, timeout=sql_timeout)
+            self.trace["group_sizes"] = [group.size for group in groups]
+            self.trace["executable_count"] = sum(self.trace["group_sizes"])
             champion_sql, challenger_sql = select_champion_and_challenger(groups)
         elif phase1_selection_mode == "llm_prompt":
             if self.grouper is None:
@@ -82,10 +87,13 @@ class DPCPipeline:
                 max_correction_attempts=max_correction_attempts,
                 num_grouping_attempts=num_grouping_attempts
             )
+            self.trace["group_sizes"] = sorted(map(len, grouping["sql_groups"]), reverse=True)
             champion_sql, challenger_sql = select_champion_and_challenger_from_sql_groups(grouping["sql_groups"])
         else:
             raise ValueError(f"Unsupported phase1_selection_mode: {phase1_selection_mode}")
         
+        self.trace.update(champion_sql=champion_sql, challenger_sql=challenger_sql,
+                          duel_triggered=bool(challenger_sql))
         if not champion_sql:
             logger.error("No valid SQL candidates to process.")
             raise ValueError("No valid SQL candidates to process.")
@@ -190,6 +198,7 @@ class DPCPipeline:
                     valid_data_points += 1
 
         # Final Decision across all valid data points (Majority Vote)
+        self.trace.update(valid_rounds=valid_data_points, challenger_wins=challenger_wins)
         if valid_data_points == 0:
             logger.error("Verification Phase failed for all data iterations. Falling back to champion.")
             return self._format_result(champion_sql, "Verification Error (All Data Failed)")

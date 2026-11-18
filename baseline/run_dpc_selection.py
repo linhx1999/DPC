@@ -3,6 +3,7 @@ import sys
 import json
 import logging
 import argparse
+import time
 import multiprocessing
 from typing import List, Dict, Any
 
@@ -36,6 +37,8 @@ from baseline.common import (
     save_json_atomic,
     terminate_executor_workers,
 )
+from baseline.provenance import candidates_digest, record_config, record_question
+from baseline.token_usage import usage_recorder
 from dpc.llm.openai_llm import OpenAILLM
 from dpc.agents.slicer_agent import SlicerAgent
 from dpc.agents.tester_agent import TesterAgent
@@ -55,6 +58,10 @@ def process_sample(item_data: Dict[str, Any], candidate_sqls: List[str], args: a
     Worker function to process a single Text-to-SQL sample.
     Initializes its own LLM and Agents to ensure process isolation.
     """
+    started = time.monotonic()
+    pipeline = None
+    agents = {}
+    details = {}
     try:
         # 1. Initialize LLM inside the process
         llm = OpenAILLM(
@@ -64,7 +71,8 @@ def process_sample(item_data: Dict[str, Any], candidate_sqls: List[str], args: a
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             max_retries=args.max_retries,
-            retry_delay=args.retry_delay
+            retry_delay=args.retry_delay,
+            usage_recorder=usage_recorder("selection", item_data["question_id"], args.model_name),
         )
 
         # 2. Initialize Agents
@@ -73,6 +81,8 @@ def process_sample(item_data: Dict[str, Any], candidate_sqls: List[str], args: a
         solver = PythonSolverAgent(llm)
         grouper = EquivalenceGrouperAgent(llm)
         pipeline = DPCPipeline(slicer=slicer, tester=tester, solver=solver, grouper=grouper)
+
+        agents = dict(slicer=slicer, tester=tester, solver=solver, grouper=grouper)
 
         # 3. Run Pipeline
         result = pipeline.run(
@@ -91,17 +101,26 @@ def process_sample(item_data: Dict[str, Any], candidate_sqls: List[str], args: a
             eval_metric=args.eval_metric
         )
 
+        details = {key: value for key, value in result.items() if key != "token_usage"}
+        if not pipeline.trace["valid_rounds"]:
+            details.update(champion_score=None, challenger_score=None)
         return {
             "question_id": item_data["question_id"],
             "success": True,
             "result": result
         }
     except Exception as e:
+        details = {"error": str(e), "selected_sql": None}
         return {
             "question_id": item_data["question_id"],
             "success": False,
             "error": str(e)
         }
+    finally:
+        record_question("selection", item_data["question_id"], started,
+                        **getattr(pipeline, "trace", {}), **details,
+                        candidates_sha256=candidates_digest(candidate_sqls),
+                        corrections={name: agent.corrections for name, agent in agents.items()})
 
 def main():
     parser = argparse.ArgumentParser(description="Run DPC-SQL Pipeline")
@@ -147,6 +166,7 @@ def main():
     parser.add_argument("--num_workers", type=int, default=8, help="Number of parallel workers")
 
     args = parser.parse_args()
+    record_config("selection", args)
 
     # Initialization
     try:
@@ -196,6 +216,8 @@ def main():
     tasks_to_run = [t for t in tasks if str(t["item_data"]["question_id"]) not in processed_ids]
     
     if not tasks_to_run:
+        if os.getenv("DPC_SESSION") and not os.path.exists(output_path):
+            save_json_atomic(output_path, results)
         logger.info("All samples have already been processed. Nothing to do.")
         return
 
@@ -225,15 +247,12 @@ def main():
                 results[qid] = None
                 logger.error(f"Sample {qid} failed: {res.get('error')}")
             
-            # Real-time saving to disk
-            try:
-                save_json_atomic(output_path, results, indent=4)
-            except Exception as e:
-                logger.error(f"Failed to save real-time results for ID {qid}: {e}")
+            save_json_atomic(output_path, results, indent=4)
     except KeyboardInterrupt:
         logger.warning("\nInterrupted by user. Terminating all processes forcefully...")
         terminate_executor_workers(executor)
         executor.shutdown(wait=False, cancel_futures=True)
+        raise
     finally:
         executor.shutdown(wait=True)
 

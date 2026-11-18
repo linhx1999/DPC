@@ -54,7 +54,7 @@ class TesterAgent(BaseAgent):
         for attempt in range(max_correction_attempts + 1):
             try:
                 logger.info(f"[TesterAgent] Generation attempt {attempt + 1}/{max_correction_attempts + 1}...")
-                response_text = self.llm.ask(messages)
+                response_text = self._ask_attempt(messages, attempt)
                 messages.append({"role": "assistant", "content": response_text})
                 
                 # Basic JSON and Schema Alignment

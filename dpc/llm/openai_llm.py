@@ -19,13 +19,15 @@ class OpenAILLM(BaseLLM):
         temperature: float = 0.0, 
         max_tokens: int = 2048,
         max_retries: int = 3,
-        retry_delay: int = 2
+        retry_delay: int = 2,
+        usage_recorder=None,
     ):
         super().__init__(model_name, temperature, max_tokens)
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.usage_recorder = usage_recorder
         
         if not self.api_key:
             logger.warning("OpenAI API key not found. Please set OPENAI_API_KEY environment variable.")
@@ -41,6 +43,8 @@ class OpenAILLM(BaseLLM):
             logger.debug(f"  [{msg['role'].upper()}]: {msg['content']}")
 
         for attempt in range(self.max_retries):
+            usage = None
+            status = "failed"
             try:
                 response = self.client.chat.completions.create(
                     model=self.model_name,
@@ -50,7 +54,8 @@ class OpenAILLM(BaseLLM):
                 )
                 
                 # Track token usage
-                if response.usage:
+                usage = response.usage
+                if usage:
                     self._add_usage(
                         prompt_tokens=response.usage.prompt_tokens,
                         completion_tokens=response.usage.completion_tokens
@@ -58,11 +63,15 @@ class OpenAILLM(BaseLLM):
 
                 content = response.choices[0].message.content.strip()
                 logger.debug(f"LLM Response (Attempt {attempt + 1}): {content}")
+                status = "success"
                 return content
             except Exception as e:
                 last_exception = e
                 logger.error(f"Error calling LLM (attempt {attempt + 1}/{self.max_retries}): {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (attempt + 1)) # Exponential backoff
+            finally:
+                if self.usage_recorder is not None:
+                    self.usage_recorder(usage, status)
+            if attempt < self.max_retries - 1:
+                time.sleep(self.retry_delay * (attempt + 1))
         
         raise RuntimeError(f"Failed to get response from LLM after {self.max_retries} attempts. Last error: {last_exception}")

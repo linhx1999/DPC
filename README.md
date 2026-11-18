@@ -342,6 +342,20 @@ Selectors typically write:
 
 ---
 
+### BIRD experiment provenance
+
+Run `./exp_bird.sh --split minidev`. Each run directory contains the following outputs.
+
+| File | Evidence |
+|---|---|
+| `per_question.jsonl` | One row per expected question in dataset order, including missing predictions. Contains database and difficulty, generation and selection time, candidate and group sizes, champion, challenger, final SQL, decision reason, verification scores and votes, per-agent correction counts, token usage, and prediction/gold execution status. |
+| `evaluation_summary.json` | Full-split EX, missing and failed executions, initial-versus-final paired outcomes, and mean selection cost for all traced questions and for duels. Each mean includes its sample count. |
+| `sessions/<id>/` | One manifest per launch with run ID, split, source hashes, Git state, Python and client versions, elapsed time and exit status. Stage JSON files contain parsed arguments and input hashes. Each evaluation retains its own per-question report and summary. |
+| `metrics/summary.json`, `telemetry/calls/` | Model-reported tokens by stage and question, plus individual model attempts. |
+| `metrics/timing.json` | Latest launch duration and cumulative wall time of finished sessions, including failed launches. |
+
+The launcher scores missing and failed predictions as incorrect in full-split EX. Paired gains compare the recorded initial champion with the final prediction on the same question. Rows without a matching selection trace or executable gold are unpaired. Execution grouping supplies the majority-vote champion. Prompt-based grouping supplies an LLM-grouped champion. Scores are null when verification produced no valid rounds. Historical checkpoints and external candidates can lack generation or selection traces. Set `MODEL_REVISION` and `MODEL_SERVER_VERSION` when known to identify the deployment behind a served model alias.
+
 ## 🧪 Supported Datasets
 
 The current codebase includes dataset loaders for:

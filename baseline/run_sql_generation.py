@@ -3,6 +3,7 @@ import sys
 import json
 import logging
 import argparse
+import time
 from tqdm import tqdm
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,6 +11,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Ensure project root is in path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from baseline.common import save_json_atomic
+from baseline.provenance import candidates_digest, record_config, record_question
+from baseline.token_usage import usage_recorder
 from dpc.llm.openai_llm import OpenAILLM
 from dpc.datasets.spider_loader import SpiderLoader
 from dpc.datasets.bird_loader import BirdLoader
@@ -59,6 +63,7 @@ def extract_sql(text: str) -> str:
     return text.strip()
 
 def run_baseline(args):
+    record_config("generation", args)
     # 1. Initialize LLM
     llm = OpenAILLM(
         model_name=args.model_name,
@@ -95,6 +100,7 @@ def run_baseline(args):
 
     # 3. Define process_item function for parallel execution
     def process_item(index):
+        started = time.monotonic()
         item = loader.get_item(index)
         question_id = str(item.question_id)
         
@@ -127,6 +133,7 @@ def run_baseline(args):
             base_url=args.base_url,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
+            usage_recorder=usage_recorder("generation", question_id, args.model_name),
         )
         
         # Multi-threading for candidates of a single question
@@ -142,6 +149,8 @@ def run_baseline(args):
         
         usage = local_llm.get_usage()
         
+        record_question("generation", question_id, started, candidate_count=len(candidates),
+                        candidates_sha256=candidates_digest(candidates))
         return question_id, candidates, usage
 
     # 4. Generate Predictions using ThreadPoolExecutor
@@ -172,12 +181,10 @@ def run_baseline(args):
             
             # Periodic save
             if i % 10 == 0:
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(results, f, indent=4, ensure_ascii=False)
+                save_json_atomic(output_path, results)
                 
     # Final save
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(results, f, indent=4, ensure_ascii=False)
+    save_json_atomic(output_path, results)
     
     logger.info(f"Completed! Results saved to {output_path}")
 

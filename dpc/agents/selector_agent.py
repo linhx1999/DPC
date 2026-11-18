@@ -86,7 +86,7 @@ class EquivalenceGrouperAgent(BaseAgent):
         for attempt in range(max_correction_attempts + 1):
             try:
                 logger.info(f"[EquivalenceGrouperAgent] Grouping attempt {attempt + 1}/{max_correction_attempts + 1}...")
-                response_text = self.llm.ask(messages)
+                response_text = self._ask_attempt(messages, attempt)
                 messages.append({"role": "assistant", "content": response_text})
 
                 parsed = self._parse_json_response(response_text)

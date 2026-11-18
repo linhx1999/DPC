@@ -1,4 +1,5 @@
 import logging
+import threading
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from ..llm.base_llm import BaseLLM
@@ -12,6 +13,14 @@ class BaseAgent(ABC):
     """
     def __init__(self, llm: BaseLLM):
         self.llm = llm
+        self.corrections = 0
+        self._counter_lock = threading.Lock()
+
+    def _ask_attempt(self, messages, attempt):
+        if attempt > 0:
+            with self._counter_lock:
+                self.corrections += 1
+        return self.llm.ask(messages)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Any:
