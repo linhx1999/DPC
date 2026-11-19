@@ -7,16 +7,17 @@ cd -- "$REPO_DIR"
 
 # BIRD 数据集根目录，包含 dev/ 和 MINIDEV/。
 export DATA_ROOT="${DATA_ROOT:-../datasets/bird}"
-SPLIT="${SPLIT:-dev}"
+SPLIT="${SPLIT:-minidev}"
 
 export MODEL_NAME="${MODEL_NAME:-Qwen3-8B}"
-export OPENAI_BASE_URL="${OPENAI_BASE_URL:-http://127.0.0.1:8000/v1}"
+export OPENAI_BASE_URL="${OPENAI_BASE_URL:-http://127.0.0.1:8001/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-EMPTY}"
 export NUM_WORKERS="${WORKERS:-${NUM_WORKERS:-8}}"
 
 # 论文 §4.1：DPC 采样温度 0.7，自纠错上限 3 次。
 # 每题 5 个候选；生成和选择统一使用 16384 输出 tokens，供推理模型使用。
 GEN_TEMPERATURE="${GEN_TEMPERATURE:-0.6}"
+GEN_MAX_TOKENS="${MAX_TOKENS:-16384}"
 DPC_TEMPERATURE="${DPC_TEMPERATURE:-0.6}"
 export MAX_TOKENS="${MAX_TOKENS:-16384}"
 export MAX_CORRECTION_ATTEMPTS="${MAX_CORRECTION_ATTEMPTS:-3}"
@@ -83,7 +84,8 @@ for ((i=0; i<RUNS; i++)); do
     trap '"$python_bin" -m baseline.provenance finish "$DPC_SESSION" "$?"' EXIT
     candidates="${PRED_SQLS_PATH:-$run_dir/candidates.json}"
     if [[ -z "${PRED_SQLS_PATH:-}" ]]; then
-        TEMPERATURE="$GEN_TEMPERATURE" OUTPUT_PATH="$candidates" bash scripts/run_gen_baseline.sh
+        TEMPERATURE="$GEN_TEMPERATURE" MAX_TOKENS="$GEN_MAX_TOKENS" OUTPUT_PATH="$candidates" \
+            bash scripts/run_gen_baseline.sh
     fi
     TEMPERATURE="$DPC_TEMPERATURE" PRED_SQLS_PATH="$candidates" OUTPUT_PATH="$run_dir/selected.json" \
         bash scripts/run_dpc_selection.sh
