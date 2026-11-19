@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 from .base_agent import BaseAgent
+from ..llm.errors import LLMResponseError
 from ..prompts.factory import PromptFactory
 from ..utils.schema_utils import TableSchema, SchemaExtractor
 from ..utils.db_utils import ensure_readonly_query
@@ -82,6 +83,8 @@ class SlicerAgent(BaseAgent):
                     else:
                         raise ValueError(f"Slicer failed dry-run after {max_correction_attempts} retries. Errors: {dry_run_errors}")
 
+            except LLMResponseError:
+                raise
             except Exception as e:
                 if attempt < max_correction_attempts:
                     # Unified: use slicer-specific retry prompt for any error

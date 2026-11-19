@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 from .base_agent import BaseAgent
+from ..llm.errors import LLMResponseError
 from ..prompts.factory import PromptFactory
 from ..utils.schema_utils import TableSchema, SchemaExtractor
 from ..eval.metrics import DPCEvaluator
@@ -86,6 +87,8 @@ class TesterAgent(BaseAgent):
                     else:
                         raise ValueError(f"Tester failed to generate distinguishing data after {max_correction_attempts} retries. Last error: {distinction_error}")
 
+            except LLMResponseError:
+                raise
             except Exception as e:
                 if attempt < max_correction_attempts:
                     retry_messages = PromptFactory.get_tester_retry_prompt(str(e))

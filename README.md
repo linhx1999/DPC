@@ -346,6 +346,40 @@ Selectors typically write:
 
 Run `./exp_bird.sh --split minidev`. Each run directory contains the following outputs.
 
+The BIRD launcher explicitly shares `MAX_TOKENS=16384` between generation and
+selection. Override it with `MAX_TOKENS=32768 ./exp_bird.sh --split minidev` when
+the serving model's context budget permits. The standalone DPC selection shell
+script and Python entrypoint also default to 16384. These limits include any
+reasoning tokens charged to the response budget.
+
+Responses with `finish_reason=length` (including partial answers), or without
+final text, stop the current agent attempt without API or self-correction
+retries at the same budget. The pipeline uses its existing failure/fallback
+handling; transport errors retain their existing retries. Independent test-data
+and solver attempts remain governed by their configured counts. New call logs
+record `outcome`, `finish_reason`, `max_tokens`, `response_chars`, `error_type`,
+and `attempt`, and the token summary includes `outcome_counts`. Older records
+without an outcome remain `unclassified`; their token totals are preserved.
+
+Changing the budget does not rerun completed selections in an existing output
+directory. To repeat selection with saved candidates, use a new run/output
+directory, for example:
+
+```bash
+RUN_ID=select16k_run1 \
+PRED_SQLS_PATH=outputs/dpc_bird_minidev_Qwen3-8B_run1/candidates.json \
+MAX_TOKENS=16384 bash exp_bird.sh --split minidev
+```
+
+This reuses candidate SQLs and runs selection and evaluation. The new session
+records the effective budget and external candidate source.
+
+Offline regression checks (mock model responses and temporary SQLite fixtures):
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 | File | Evidence |
 |---|---|
 | `per_question.jsonl` | One row per expected question in dataset order, including missing predictions. Contains database and difficulty, generation and selection time, candidate and group sizes, champion, challenger, final SQL, decision reason, verification scores and votes, per-agent correction counts, token usage, and prediction/gold execution status. |

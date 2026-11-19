@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from .base_agent import BaseAgent
+from ..llm.errors import LLMResponseError
 from ..prompts.factory import PromptFactory
 from ..utils.schema_utils import TableSchema, SchemaExtractor
 
@@ -52,6 +53,8 @@ class EquivalenceGrouperAgent(BaseAgent):
                     max_correction_attempts=max_correction_attempts
                 )
                 sampled_groups.append(groups)
+            except LLMResponseError:
+                raise
             except Exception as e:
                 logger.warning("[EquivalenceGrouperAgent] SC sample %s failed: %s", i + 1, e)
 
@@ -93,6 +96,8 @@ class EquivalenceGrouperAgent(BaseAgent):
                 groups = self._validate_and_normalize_groups(parsed, len(candidate_sqls))
                 logger.info("[EquivalenceGrouperAgent] Parsed %s groups.", len(groups))
                 return groups
+            except LLMResponseError:
+                raise
             except Exception as e:
                 if attempt < max_correction_attempts:
                     messages.extend(PromptFactory.get_equivalence_grouper_retry_prompt(str(e)))

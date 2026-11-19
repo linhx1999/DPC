@@ -16,11 +16,11 @@ def usage_recorder(stage, question_id, model):
     if not output:
         return None
 
-    def record(usage, status):
+    def record(usage, status, **details):
         counts = {field: getattr(usage, field, None) for field in TOKEN_FIELDS}
         row = {"stage": stage, "question_id": str(question_id), "model": model,
                "session_id": Path(os.environ["DPC_SESSION"]).name if os.getenv("DPC_SESSION") else None,
-               "status": status, **counts}
+               "status": status, **counts, **details}
         path = Path(output) / "telemetry" / "calls" / f"{stage}-{uuid4().hex}.json"
         save_json_atomic(path, row)
 
@@ -29,13 +29,15 @@ def usage_recorder(stage, question_id, model):
 
 def summarize(output):
     def counters():
-        return {"calls": 0, "failed_calls": 0, "calls_missing_usage": 0,
+        return {"calls": 0, "failed_calls": 0, "calls_missing_usage": 0, "outcome_counts": {},
                 **dict.fromkeys(TOKEN_FIELDS)}
 
     def add(stats, row):
         stats["calls"] += 1
         stats["failed_calls"] += row["status"] == "failed"
         stats["calls_missing_usage"] += any(row[k] is None for k in TOKEN_FIELDS)
+        outcome = row.get("outcome") or "unclassified"
+        stats["outcome_counts"][outcome] = stats["outcome_counts"].get(outcome, 0) + 1
         for field in TOKEN_FIELDS:
             if row[field] is not None:
                 stats[field] = (stats[field] or 0) + row[field]

@@ -3,6 +3,7 @@ data/
 dpc_results/
 dpc_run.log
 .DS_Store
+outputs
 
 results/temp
 artifacts/

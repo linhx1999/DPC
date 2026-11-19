@@ -20,7 +20,7 @@ MODEL_NAME=${MODEL_NAME:-"qwen2.5-coder-7b-instruct"}
 API_KEY=${API_KEY:-""}
 BASE_URL=${BASE_URL:-""}
 TEMPERATURE=${TEMPERATURE:-1.0}
-MAX_TOKENS=${MAX_TOKENS:-4096}
+MAX_TOKENS=${MAX_TOKENS:-16384}
 MAX_RETRIES=${MAX_RETRIES:-3}
 RETRY_DELAY=${RETRY_DELAY:-2}
 
@@ -41,6 +41,7 @@ echo "Dataset: $DATASET_TYPE"
 echo "Input: $PRED_SQLS_PATH"
 echo "Output: $OUTPUT_PATH"
 echo "Model: $MODEL_NAME"
+echo "Max output tokens per request: $MAX_TOKENS"
 echo "Phase1 Mode: $PHASE1_SELECTION_MODE"
 echo "Eval Metric: $EVAL_METRIC"
 

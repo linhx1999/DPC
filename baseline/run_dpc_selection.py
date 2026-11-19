@@ -137,7 +137,7 @@ def main():
     parser.add_argument("--api_key", type=str, default=None, help="LLM API Key")
     parser.add_argument("--base_url", type=str, default=None, help="LLM Base URL")
     parser.add_argument("--temperature", type=float, default=0.0, help="Generation temperature")
-    parser.add_argument("--max_tokens", type=int, default=2048, help="Max tokens per response")
+    parser.add_argument("--max_tokens", type=int, default=16384, help="Max output tokens per response, including reasoning")
     parser.add_argument("--max_retries", type=int, default=3, help="Max retries for LLM calls")
     parser.add_argument("--retry_delay", type=int, default=2, help="Delay between retries")
     

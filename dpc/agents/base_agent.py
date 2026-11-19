@@ -3,6 +3,7 @@ import threading
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from ..llm.base_llm import BaseLLM
+from ..llm.errors import LLMResponseError
 from ..utils.response_parser import extract_result_block, parse_json_response
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,8 @@ class BaseAgent(ABC):
                 
                 logger.debug(f"[{self.__class__.__name__}] Successfully parsed and validated JSON.")
                 return parsed_json
+            except LLMResponseError:
+                raise
             except Exception as e:
                 last_error = e
                 logger.warning(f"[{self.__class__.__name__}] Attempt {attempt + 1}/{max_retries} failed: {e}")

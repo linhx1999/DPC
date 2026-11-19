@@ -15,9 +15,10 @@ export OPENAI_API_KEY="${OPENAI_API_KEY:-EMPTY}"
 export NUM_WORKERS="${WORKERS:-${NUM_WORKERS:-8}}"
 
 # 论文 §4.1：DPC 采样温度 0.7，自纠错上限 3 次。
-# 候选数和输出上限继承原实验脚本（每题 5 个候选，每次请求 4096 tokens）。
+# 每题 5 个候选；生成和选择统一使用 16384 输出 tokens，供推理模型使用。
 GEN_TEMPERATURE="${GEN_TEMPERATURE:-0.6}"
 DPC_TEMPERATURE="${DPC_TEMPERATURE:-0.6}"
+export MAX_TOKENS="${MAX_TOKENS:-16384}"
 export MAX_CORRECTION_ATTEMPTS="${MAX_CORRECTION_ATTEMPTS:-3}"
 
 RUN_ID="${RUN_ID:-run1}"

@@ -4,6 +4,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import openai
 from .base_llm import BaseLLM
+from .errors import EmptyResponseError, LLMResponseError, OutputTokenLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,10 @@ class OpenAILLM(BaseLLM):
         for attempt in range(self.max_retries):
             usage = None
             status = "failed"
+            finish_reason = None
+            response_chars = None
+            error_type = None
+            outcome = "api_error"
             try:
                 response = self.client.chat.completions.create(
                     model=self.model_name,
@@ -61,16 +66,35 @@ class OpenAILLM(BaseLLM):
                         completion_tokens=response.usage.completion_tokens
                     )
 
-                content = response.choices[0].message.content.strip()
+                choice = response.choices[0]
+                finish_reason = choice.finish_reason
+                content = choice.message.content
+                response_chars = len(content) if isinstance(content, str) else 0
+                if finish_reason == "length":
+                    raise OutputTokenLimitError(self.max_tokens)
+                if not isinstance(content, str) or not content.strip():
+                    raise EmptyResponseError()
+                content = content.strip()
                 logger.debug(f"LLM Response (Attempt {attempt + 1}): {content}")
                 status = "success"
+                outcome = "success"
                 return content
+            except LLMResponseError as e:
+                error_type = type(e).__name__
+                outcome = e.outcome
+                logger.error("Unusable LLM response: %s", e)
+                raise
             except Exception as e:
+                error_type = type(e).__name__
                 last_exception = e
                 logger.error(f"Error calling LLM (attempt {attempt + 1}/{self.max_retries}): {e}")
             finally:
                 if self.usage_recorder is not None:
-                    self.usage_recorder(usage, status)
+                    self.usage_recorder(
+                        usage, status, outcome=outcome, finish_reason=finish_reason,
+                        max_tokens=self.max_tokens, response_chars=response_chars,
+                        error_type=error_type, attempt=attempt + 1,
+                    )
             if attempt < self.max_retries - 1:
                 time.sleep(self.retry_delay * (attempt + 1))
         

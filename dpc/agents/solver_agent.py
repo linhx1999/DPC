@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional, Union
 from .base_agent import BaseAgent
+from ..llm.errors import LLMResponseError
 from ..prompts.factory import PromptFactory
 from ..utils.schema_utils import TableSchema, SchemaExtractor
 from ..utils.python_executor import PythonExecutor
@@ -70,6 +71,8 @@ class PythonSolverAgent(BaseAgent):
                 logger.info("[PythonSolverAgent] Code executed successfully.")
                 return result
                 
+            except LLMResponseError:
+                raise
             except Exception as e:
                 if attempt < max_correction_attempts:
                     # Unified: use solver-specific retry prompt for any error
