@@ -5,7 +5,7 @@ set -euo pipefail
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd -- "$REPO_DIR"
 
-# BIRD 数据集根目录，包含 dev/ 和 MINIDEV/。
+# BIRD 数据集根目录，包含 dev/ 和 minidev/。
 export DATA_ROOT="${DATA_ROOT:-../datasets/bird}"
 SPLIT="${SPLIT:-minidev}"
 
@@ -43,7 +43,7 @@ while (($#)); do
 done
 case "$SPLIT" in
     dev) split_dir="$DATA_ROOT/dev"; questions=dev.json ;;
-    minidev) split_dir="$DATA_ROOT/MINIDEV"; questions=mini_dev_sqlite.json ;;
+    minidev) split_dir="$DATA_ROOT/minidev"; questions=mini_dev_sqlite.json ;;
     *) echo "Unsupported BIRD split: $SPLIT" >&2; exit 2 ;;
 esac
 export DATASET_TYPE=bird
